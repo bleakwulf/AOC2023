@@ -1,10 +1,8 @@
 const fs = require("fs");
 const logHeaderPrefix = "AOC2023";
-const challengeDayNo = "10";
-const challengeTitle = "Pipe Maze";
+const [ dayNo, title ] = [ "10", "Pipe Maze" ];
 
 const START_FLAG = 'S';
-const PIPE_TYPES = [ 'F', 'J', 'L', '7', '|', '-' ];
 
 const DIRECTIONS_REF = new Map([
   [ 'N', { xIncrement:  0,  yIncrement: -1,  expectedPipes: [ '7', '|', 'F' ] } ],
@@ -13,6 +11,10 @@ const DIRECTIONS_REF = new Map([
   [ 'W', { xIncrement: -1,  yIncrement:  0,  expectedPipes: [ 'L', '-', 'F' ] } ]
 ]);
 
+/** 
+  *  key is combo of initial direction + pipe type, 
+  *  value is the new direction at the end of the pipe
+*/
 const PIPE_DIRECTIONS_REF = new Map([
   [ 'N+|', 'N' ], 
   [ 'S+|', 'S' ], 
@@ -42,7 +44,7 @@ if (!rawInputData) {
   return;
 }
 
-console.info(`${logHeaderPrefix} | Day ${challengeDayNo} | ${challengeTitle}`);
+console.info(`${logHeaderPrefix} | Day ${dayNo} | ${title}`);
 
 const t1 = performance.now();
 
@@ -65,7 +67,7 @@ const { lines, startCoords }= rawInputData
     { lines: [], startCoords: null }
   );
 
-// get seed coords
+/**  get seed coords  */
 let refPipes = Array
   .from( DIRECTIONS_REF.entries() )
   .map(  ([ key, { xIncrement, yIncrement, expectedPipes } ]) => {
@@ -80,13 +82,29 @@ let refPipes = Array
   })
   .filter( seedData => seedData );
 
-//  init loop coords
+/**  normalize start point into its proper pipe type  */
+const startPipeDirectionCombo = refPipes.reduce( (directionCombo, { direction }) => directionCombo + direction, '' );
+switch (startPipeDirectionCombo) {
+  case 'NS':  case 'SN':  lines[startCoords.y][startCoords.x] = '|'; break;
+  case 'EW':  
+  case 'WE':  lines[startCoords.y][startCoords.x] = '-'; break;
+  case 'NE':  
+  case 'EN':  lines[startCoords.y][startCoords.x] = 'L'; break;
+  case 'SE':  
+  case 'ES':  lines[startCoords.y][startCoords.x] = 'F'; break;
+  case 'SW':  
+  case 'WS':  lines[startCoords.y][startCoords.x] = '7'; break;
+  case 'NW':  
+  case 'WN':  lines[startCoords.y][startCoords.x] = 'J'; break;
+};
+
+/**  init loop coords  */
 const LOOP_COORDS_REF = new Map([
   [ `${[ startCoords.x, startCoords.y ].join('|')}`, startCoords ],
   ...refPipes.map( ({ x,y }) => [ `${x}|${y}`, { x, y } ])
 ]);
 
-//  build entire loop
+/**  build entire loop  */
 let farthestStep = 1;
 while (true) {
   let isDuplicateCoord = false;
@@ -125,10 +143,43 @@ while (true) {
 
 const solveP1 = () => farthestStep;
 
-const solveP2 = () => {};
+const solveP2 = () => {
+  const loopCoordsRef = Array.from( LOOP_COORDS_REF.values() )
 
-console.info(`P1 : ${solveP1(  )}`);  //  7093
-console.info(`P2 : ${solveP2(  )}`);  //  
+  return lines.reduce( ( enclosedSpaces, lineData, lineIndex ) => {
+    const coordsWithinLine = loopCoordsRef
+      .filter( ({ x, y }) => y === lineIndex && lines.at(y).at(x) !== '-')
+      .sort( (coordA, coordB) => coordA.x > coordB.x ? 1 : coordA.x < coordB.x ? -1 : 0);
+
+    const simplifiedCoords = Array
+      .from(
+        coordsWithinLine
+          .map( ({ x, y }) => lines.at(y).at(x) )
+          .join('')
+          .matchAll(/(FJ)|(L7)/g),  
+        ({ index }) => index 
+      ).reduceRight( ( coordsRef, refIndex ) => {
+        coordsRef.splice( refIndex + 1, 1 );
+        return coordsRef
+      }, coordsWithinLine);
+
+    lineData
+      .map( (_, tileIndex) => tileIndex )
+      .filter( tileIndex => !LOOP_COORDS_REF.has( `${tileIndex}|${lineIndex}` ))
+      .forEach( tileIndex => {
+        const leftSideCoords = simplifiedCoords.filter( ({ x }) => x < tileIndex );
+        const rightSideCoords = simplifiedCoords.filter( ({ x }) => x > tileIndex );
+
+        if ((leftSideCoords.length % 2) && (rightSideCoords.length % 2)) 
+          enclosedSpaces++;
+      });
+
+    return enclosedSpaces;
+  }, 0);
+};
+
+console.info(`P1 : ${solveP1()}`);  //  7093
+console.info(`P2 : ${solveP2()}`);  //  407
 
 const t2 = performance.now();
 
